@@ -1,115 +1,55 @@
 import cv2
-from sklearn.decomposition import PCA
-import glob
 import numpy as np
 
-file = r"tyre\tyre images\IMG_20241220_124835.jpg"
+file = r"tyre\tyre images\only_tyre.jpg"
 img = cv2.imread(file)
 
-###############
-# # K-means
-# # Reshape the image to a 2D array of pixels
-# pixel_values = img.reshape((-1, 3))
-# pixel_values = np.float32(pixel_values)
-
-# # Define criteria and apply kmeans()
-# criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 0.2)
-# k = 2  # Number of clusters
-# _, labels, centers = cv2.kmeans(pixel_values, k, None, criteria, 10, cv2.KMEANS_RANDOM_CENTERS)
-
-# # Convert back to 8 bit values
-# centers = np.uint8(centers)
-
-# # Map the labels to the center colors
-# segmented_image = centers[labels.flatten()]
-
-# # Reshape back to the original image dimension
-# img = segmented_image.reshape(img.shape)
-
-# # Display the segmented image
-# cv2.imshow('Segmented Image', cv2.resize(segmented_image, (400, 600)))
-
-############
-# luv = cv2.cvtColor(img, cv2.COLOR_BGR2LUV)
-# segmented_image = cv2.pyrMeanShiftFiltering(luv, sp=21, sr=51)
-# img = cv2.cvtColor(segmented_image, cv2.COLOR_LUV2BGR)
-
-###########
-# gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-# ret, thresh = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY)
-# contours, hierarchy = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-# # cv2.drawContours(img, contours, -1, (0, 255, 0), 3)
-
-# ###########
-# gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-# edges = cv2.Canny(gray, 50, 150)
-# lines = cv2.HoughLines(edges, 1, np.pi / 180, 500)
-# if lines is not None:
-#     for rho, theta in lines[:, 0]:
-#         a = np.cos(theta)
-#         b = np.sin(theta)
-#         x0 = a * rho
-#         y0 = b * rho
-#         x1 = int(x0 + 1000 * (-b))
-#         y1 = int(y0 + 1000 * (a))
-#         x2 = int(x0 - 1000 * (-b))
-#         y2 = int(y0 - 1000 * (a))
-#         cv2.line(img, (x1, y1), (x2, y2), (0, 0, 255), 2)
-############### WatherShed
+black_threshold = 127
+img_copy = img.copy()
 gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-ret, binimg = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+ret, thresh = cv2.threshold(gray, black_threshold, 255, cv2.THRESH_BINARY)
+gray = cv2.GaussianBlur(thresh, (5, 5), 0)
+contours, hierarchy = cv2.findContours(gray, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE) # RETRIEVE ONLY PARENT/EXTERNAL CONTOURS
+# cv2.drawContours(img, contours, -1, (0, 255, 0), 1)
 
-# noise removal
-kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
-bin_img = cv2.morphologyEx(binimg, 
-                           cv2.MORPH_OPEN,
-                           kernel,
-                           iterations=2)
+# hulls = [cv2.convexHull(contours[i]) for i in range(len(contours))]
+# cv2.drawContours(img, hulls, -1, (0, 0, 255), 1)
 
-sure_bg = cv2.dilate(bin_img, kernel, iterations=3)
-dist = cv2.distanceTransform(bin_img, cv2.DIST_L2, 5)
-ret, sure_fg = cv2.threshold(dist, 0.5 * dist.max(), 255, cv2.THRESH_BINARY)
-sure_fg = sure_fg.astype(np.uint8) 
-unknown = cv2.subtract(sure_bg, sure_fg)
+strips = []
+for cnt in contours:
+	x,y,w,h = cv2.boundingRect(cnt)
+	aspect_ratio = float(w)/h
+	extent = cv2.contourArea(cnt)/(w*h)
+	if aspect_ratio > 3 and extent > 0.3:
+		strips.append(cnt)
+		cv2.rectangle(img_copy,(x,y),(x+w,y+h),(255, 181, 233), 1)
 
-# Marker labelling
-# sure foreground 
-ret, markers = cv2.connectedComponents(sure_fg)
+# for cnt in contours:
+# 	rect = cv2.minAreaRect(cnt)
+# 	box = cv2.boxPoints(rect)
+# 	box = np.intp(box)
+# 	cv2.drawContours(img,[box],0,(0,255,255),1)
 
-# Add one to all labels so that background is not 0, but 1
-markers += 1
-# mark the region of unknown with zero
-markers[unknown == 255] = 0
-# watershed Algorithm
-markers = cv2.watershed(img, markers)
+for cnt in strips:
+	mask = np.zeros(gray.shape,np.uint8)
+	cv2.drawContours(mask,[cnt],0,255,-1) # "-1" means Filled solid white
+	pixelpoints = cv2.findNonZero(mask)
+	img_copy = cv2.drawContours(img_copy, [pixelpoints], -1, (0, 0, 255), 1)
+	color = [0, 0, 0]
+	px_count = 0
+	for point in pixelpoints:
+		x, y = point[0]
+		if gray[y, x] > black_threshold:
+			color += img[y, x]
+			img_copy = cv2.drawContours(img_copy, [point], -1, (255, 0, 0), 1)
+			px_count += 1
+	mean_color = np.intp(color/px_count)
+	print(mean_color)
+	# break
+	# mean_col = cv2.mean(img,mask = mask)
 
-labels = np.unique(markers)
-
-coins = []
-for label in labels[2:]: 
-
-# Create a binary image in which only the area of the label is in the foreground 
-#and the rest of the image is in the background 
-	target = np.where(markers == label, 255, 0).astype(np.uint8)
-
-# Perform contour extraction on the created binary image
-	contours, hierarchy = cv2.findContours(
-		target, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
-	)
-	coins.append(contours[0])
-
-# Draw the outline
-img = cv2.drawContours(img, coins, -1, color=(0, 23, 223), thickness=2)
-
-###############
-
-
-cv2.imshow('img', cv2.resize(img, (400, 600)))
-# cv2.imshow('sure_bg', cv2.resize(sure_bg, (400, 600)))
-# cv2.imshow('sure_fg', cv2.resize(sure_fg, (400, 600)))
-# cv2.imshow('dist', cv2.resize(dist, (400, 600)))
-# cv2.imshow('unknown', cv2.resize(unknown, (400, 600)))
-# cv2.imshow('Detected Tyre', cv2.resize(img, (400, 600)))
+cv2.imshow('img', cv2.resize(img_copy, (1200, 400)))
+cv2.imwrite('tyre_segment.jpg', img_copy)
 cv2.waitKey(0)
 cv2.destroyAllWindows()
 

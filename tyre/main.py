@@ -78,8 +78,8 @@ file = r"tyre\tyre images\IMG_20241220_124835.jpg"
 img = cv2.imread(file)
 hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
-window_width = 600
-window_height = 200
+window_width = 300
+window_height = 20
 
 step_size = 20
 
