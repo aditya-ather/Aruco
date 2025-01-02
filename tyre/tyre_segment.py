@@ -16,8 +16,10 @@ contours, hierarchy = cv2.findContours(gray, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX
 # cv2.drawContours(img, hulls, -1, (0, 0, 255), 1)
 
 strips = []
+rects = []
 for cnt in contours:
 	x,y,w,h = cv2.boundingRect(cnt)
+	rects.append((x,y,x+w,y+h))
 	aspect_ratio = float(w)/h
 	extent = cv2.contourArea(cnt)/(w*h)
 	if aspect_ratio > 3 and extent > 0.3:
@@ -30,7 +32,12 @@ for cnt in contours:
 # 	box = np.intp(box)
 # 	cv2.drawContours(img,[box],0,(0,255,255),1)
 
+centers = []
 for cnt in strips:
+	M = cv2.moments(cnt)
+	cY = int(M["m01"] / M["m00"])
+	cX = int(M["m10"] / M["m00"])
+	centers.append((cX, cY))
 	mask = np.zeros(gray.shape,np.uint8)
 	cv2.drawContours(mask,[cnt],0,255,-1) # "-1" means Filled solid white
 	pixelpoints = cv2.findNonZero(mask)
@@ -44,9 +51,23 @@ for cnt in strips:
 			img_copy = cv2.drawContours(img_copy, [point], -1, (255, 0, 0), 1)
 			px_count += 1
 	mean_color = np.intp(color/px_count)
-	print(mean_color)
-	# break
-	# mean_col = cv2.mean(img,mask = mask)
+
+for center in centers:
+	selected_rects = []
+	for rect in rects:
+		x1, y1, x2, y2 = rect
+		if x1 <= center[0] <= x2:
+			selected_rects.append(rect)
+		if len(selected_rects) == 3:
+			break
+	if len(selected_rects) == 3:
+		break
+
+for rect in selected_rects:
+	x1, y1, x2, y2 = rect
+	cv2.rectangle(img_copy, (x1, y1), (x2, y2), (0, 255, 0), 3)
+	
+
 
 cv2.imshow('img', cv2.resize(img_copy, (1200, 400)))
 cv2.imwrite('tyre_segment.jpg', img_copy)
