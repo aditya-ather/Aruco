@@ -4,7 +4,7 @@ import time
 aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
 aruco_params = cv2.aruco.DetectorParameters()
 detector = cv2.aruco.ArucoDetector(aruco_dict, aruco_params)
-cam = cv2.VideoCapture(1)
+cam = cv2.VideoCapture(0)
 # cam = cv2.VideoCapture('http://172.19.66.48:8080/video')
 
 while True:
