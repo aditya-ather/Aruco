@@ -3,7 +3,7 @@ import numpy as np
 
 BINARY_THRESHOLD = 127
 CONTOUR_ASPECT_RATIO = 3
-CONTOUR_EXTENT = 0.5
+CONTOUR_EXTENT = 0.1
 STRIP_COUNT = 3
 CROP_IMAGE = False
 CROP_WINDOW_X = 100
@@ -31,6 +31,8 @@ def find_contours(gray):
     _, thresh = cv2.threshold(gray, BINARY_THRESHOLD, 255, cv2.THRESH_BINARY)
     gray = cv2.GaussianBlur(thresh, (5, 5), 0)
     contours, _ = cv2.findContours(gray, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if len(contours) == 0:
+        raise Exception("Error: No contours found")
     return contours
 
 def filter_contours(contours):
@@ -42,6 +44,8 @@ def filter_contours(contours):
         if aspect_ratio > CONTOUR_ASPECT_RATIO and extent > CONTOUR_EXTENT:
             strip = Strip(contour=cnt, rect=(x, y, x+w, y+h))
             strips.append(strip)
+    if len(strips) == 0:
+        raise Exception("Error: No strips found")
     return strips
 
 def filter_pixels(pixelpoints, gray):
@@ -56,8 +60,7 @@ def find_pixelpoints(contour, gray):
 
 def select_strips(strips):
     if len(strips) < STRIP_COUNT:
-        # raise Exception(f"Error: Found only {len(strips)} strips")
-        return
+        raise Exception(f"Error: Found only {len(strips)} strips")
     for strip in strips:
         center = strip.center()
         selected_strips = []
@@ -70,8 +73,7 @@ def select_strips(strips):
         if len(selected_strips) == STRIP_COUNT:
             break
     if len(selected_strips) != STRIP_COUNT:
-        # raise Exception(f"Error: Could not find {STRIP_COUNT} strips")
-        return
+        raise Exception(f"Error: Found only {len(strips)} strips")
     return sorted(selected_strips, key=lambda strip: strip.center()[1])
 
 def k_means(data, k=3, max_iterations=100):
@@ -107,10 +109,14 @@ def extract_color(strip, gray, img, k=1, max_iterations=10):
     return tuple(int(pixel) for pixel in centroids[largest_cluster_idx])
 
 def find_variant(detected_pattern):
-    distances = [np.linalg.norm(np.array(detected_pattern) - np.array(list(TYRE_VARIANTS.values())))]
+    distances = []
+    for pattern in TYRE_VARIANTS.values():
+        distance = np.linalg.norm(np.array(pattern) - np.array(detected_pattern))
+        distances.append(distance)
     closest_idx = np.argmin(distances)
     if distances[closest_idx] < COLOR_DISTANCE_TOLERANCE:
-        return TYRE_VARIANTS[list(TYRE_VARIANTS.keys())[closest_idx]]
+        return list(TYRE_VARIANTS.keys())[closest_idx]
+    raise Exception("Error: No variant found")
 
 def main():
     cam = cv2.VideoCapture(0)
