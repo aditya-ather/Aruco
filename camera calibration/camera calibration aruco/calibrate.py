@@ -14,10 +14,11 @@ from tqdm import tqdm
 root = Path(__file__).parent.absolute()
 
 # Set this flsg True for calibrating camera and False for validating results real time
-calibrate_camera = False
+# calibrate_camera = True
+calibrate_camera = True
 
 # Set path to the images
-calib_imgs_path = root.joinpath("images")
+calib_imgs_path = root.joinpath("images webcam")
 
 # For validating results, show aruco board to camera.
 aruco_dict = aruco.getPredefinedDictionary( aruco.DICT_6X6_1000 )
@@ -55,8 +56,12 @@ if calibrate_camera == True:
             id_list = ids
             first = False
         else:
-            corners_list = np.vstack((corners_list, corners))
-            id_list = np.vstack((id_list,ids))
+            try:
+                corners_list = np.vstack((corners_list, corners))
+                id_list = np.vstack((id_list,ids))
+            except:
+                print('fail')
+                continue
         counter.append(len(ids))
     print('Found {} unique markers'.format(len(np.unique(ids))))
 
@@ -71,6 +76,7 @@ if calibrate_camera == True:
         pickle.dump(data, f)
     print('Calibration done.')
     print("Total reprojection error: ", ret)
+    print(data)
 
 else:
     camera = cv2.VideoCapture(1)
@@ -82,12 +88,29 @@ else:
     mtx = loadeddict.get('camera_matrix')
     dist = loadeddict.get('dist_coeff')
     mtx = np.array(mtx)
+    # mtx = np.array([[626.0, 0.0, 324.0],[0.0, 628.0, 258.0],[0.0, 0.0, 1.0]])
     dist = np.array(dist)
+    # dist = np.array([[0.068, -0.16, 0.001, 0.0, -0.027]])
 
     ret, img = camera.read()
     img_gray = cv2.cvtColor(img,cv2.COLOR_RGB2GRAY)
     h,  w = img_gray.shape[:2]
     newcameramtx, roi=cv2.getOptimalNewCameraMatrix(mtx,dist,(w,h),1,(w,h))
+
+    cube = np.array([
+        [0, 0, 0],
+        [markerLength, 0, 0],
+        [markerLength, markerLength, 0],
+        [0, markerLength, 0],
+        [0, 0, -markerLength],
+        [markerLength, 0, -markerLength],
+        [markerLength, markerLength, -markerLength],
+        [0, markerLength, -markerLength]
+    ], dtype=np.float32) * 2
+
+    offset = np.zeros((8,3))
+    offset[:, 2] = -20
+    # cube += offset
 
     pose_r, pose_t = [], []
     while True:
@@ -95,16 +118,23 @@ else:
         img_aruco = img
         im_gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
         h,  w = im_gray.shape[:2]
-        dst = cv2.undistort(im_gray, mtx, dist, None, newcameramtx)
+        dst = cv2.undistort(img, mtx, dist, None, newcameramtx)
         corners, ids, rejectedImgPoints = detector.detectMarkers(dst)
 
         if corners:
             ret, rvec, tvec = aruco.estimatePoseBoard(corners, ids, board, newcameramtx, dist, None, None) # For a board
             
             if ret != 0:
-                img_aruco = aruco.drawDetectedMarkers(img, corners, ids, (0,255,0))
-                img_aruco = cv2.drawFrameAxes(img_aruco, newcameramtx, dist, rvec, tvec, 10, 5)    # axis length 10 can be changed according to your requirement
+                # img_aruco = aruco.drawDetectedMarkers(img, corners, ids, (0,255,0))
+                # img_aruco = cv2.drawFrameAxes(img_aruco, newcameramtx, dist, rvec, tvec, 10, 5)    # axis length 10 can be changed according to your requirement
                 
+                imgpts, _ = cv2.projectPoints(cube, rvec, tvec, newcameramtx, dist)
+                imgpts = np.int32(imgpts).reshape(-1,2)
+                cv2.drawContours(img, [imgpts[:4]], -1, (0, 255, 0), 2)
+                cv2.drawContours(img, [imgpts[4:]], -1, (0, 0, 255), 2)
+                for i in range(4):
+                    cv2.line(img, tuple(imgpts[i]), tuple(imgpts[i+4]), (255, 0, 0), 2)
+
             if cv2.waitKey(1) & 0xFF == ord('s') and len(corners)>3:
                 use_corner = 1
                 if use_corner:
@@ -148,8 +178,8 @@ else:
                 if angle==0:
                     print(f"Offset: {abs(p11[1] - p21[1])}")
                 print(f"Angle: {math.degrees(angle)}")
-        cv2.imshow("original", cv2.resize((im_gray), (640, 320)))
-        cv2.imshow("World co-ordinate frame axes", cv2.resize((img_aruco), (640, 320)))
+        cv2.imshow("hbfjd", img_aruco)
+        # cv2.imshow("World co-ordinate frame axes", cv2.resize((img_aruco), (640, 320)))
 
 
         if cv2.waitKey(1) & 0xFF == ord('x'):

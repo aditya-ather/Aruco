@@ -3,8 +3,8 @@ from pathlib import Path
 
 # camera = cv2.VideoCapture(1)
 camera = cv2.VideoCapture('https://172.19.66.48:8080/video')
+# camera = cv2.VideoCapture(1)
 ret, img = camera.read()
-
 
 root = Path(__file__).parent.absolute()
 folder = "images/"
@@ -14,7 +14,7 @@ count = 1
 while True:
     name = str(count)+".jpg"
     ret, img = camera.read()
-    cv2.imshow("img", cv2.resize(img, (1280, 640)))
+    cv2.imshow("img", cv2.resize(img, (640, 320)))
 
 
     if cv2.waitKey(1) == ord('s'):

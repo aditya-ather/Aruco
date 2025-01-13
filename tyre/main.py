@@ -1,148 +1,112 @@
 import cv2
 import numpy as np
 
-BINARY_THRESHOLD = 127
-CONTOUR_ASPECT_RATIO = 3
-CONTOUR_EXTENT = 0.1
-STRIP_COUNT = 3
-CROP_IMAGE = False
-CROP_WINDOW_X = 100
-CROP_WINDOW_Y = 100
-CROP_WINDOW_HEIGHT = 500
-CROP_WINDOW_WIDTH = 1500
-COLOR_DISTANCE_TOLERANCE = 50000
-TYRE_VARIANTS = {
-    'variant1': [(255, 255, 255), (255, 255, 255), (0, 255, 255)],
-    'variant2': [(0, 255, 255), (0, 255, 255), (0, 0, 255)],
+def detect(window):
+    # Convert to HSV color space
+    hsv = cv2.cvtColor(window, cv2.COLOR_BGR2HSV)
+
+    # Color ranges
+    lower_red = (0, 100, 100)
+    upper_red = (10, 255, 255)
+
+    lower_blue = (110, 50, 50)
+    upper_blue = (130, 255, 255)
+
+    lower_yellow = (20, 100, 100)
+    upper_yellow = (30, 255, 255)
+
+    lower_white = (0, 0, 200)
+    upper_white = (180, 25, 255)
+
+    lower_black = (0, 0, 0)
+    upper_black = (180, 255, 30)
+
+    # Create masks for each color
+    mask_red = cv2.inRange(hsv, lower_red, upper_red)
+    mask_blue = cv2.inRange(hsv, lower_blue, upper_blue)
+    mask_yellow = cv2.inRange(hsv, lower_yellow, upper_yellow)
+    mask_white = cv2.inRange(hsv, lower_white, upper_white)
+    mask_black = cv2.inRange(hsv, lower_black, upper_black)
+
+    # Find contours in each mask
+    contours_red, _ = cv2.findContours(mask_red, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    contours_blue, _ = cv2.findContours(mask_blue, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    contours_yellow, _ = cv2.findContours(mask_yellow, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    contours_white, _ = cv2.findContours(mask_white, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    contours_black, _ = cv2.findContours(mask_black, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    rects_red = [cv2.boundingRect(cnt) for cnt in contours_red]
+    rects_blue = [cv2.boundingRect(cnt) for cnt in contours_blue]
+    rects_yellow = [cv2.boundingRect(cnt) for cnt in contours_yellow]
+    rects_white = [cv2.boundingRect(cnt) for cnt in contours_white]
+    rects_black = [cv2.boundingRect(cnt) for cnt in contours_black]
+
+    # Draw bounding boxes around red contours
+    area_red = 0
+    for cnt in contours_red:
+        x, y, w, h = cv2.boundingRect(cnt)
+        area_red += w * h
+        cv2.rectangle(window, (x, y), (x + w, y + h), (0, 0, 255), 1)
+
+    area_yellow = 0
+    for cnt in contours_yellow:
+        x, y, w, h = cv2.boundingRect(cnt)
+        area_yellow += w * h
+        cv2.rectangle(window, (x, y), (x + w, y + h), (30, 255, 255), 1)
+
+    area_blue = 0
+    for cnt in contours_blue:
+        x, y, w, h = cv2.boundingRect(cnt)
+        area_blue += w * h
+        cv2.rectangle(window, (x, y), (x + w, y + h), (255, 0, 0), 1)
+
+    area_white = 0
+    for cnt in contours_white:
+        x, y, w, h = cv2.boundingRect(cnt)
+        area_white += w * h
+        cv2.rectangle(window, (x, y), (x + w, y + h), (255, 255, 255), 1)
+
+    area_black = 0
+    for cnt in contours_black:
+        x, y, w, h = cv2.boundingRect(cnt)
+        area_black += w * h
+        cv2.rectangle(window, (x, y), (x + w, y + h), (0, 0, 0), 1)
+
+    return window, {'red': rects_red if area_red > min_area else [], 'blue': rects_blue if area_blue > min_area else [], 'yellow': rects_yellow if area_yellow > min_area else [], 'white': rects_white if area_white > min_area else [], 'black': rects_black if area_black > min_area else []}
+
+file = r"tyre\tyre images\frame0.jpg"
+img = cv2.imread(file)
+hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+
+window_width = 300
+window_height = 20
+
+step_size = 20
+
+min_area = 1000
+
+height, width, _ = img.shape
+center_x = width // 2
+
+classes = {
+    'variant1': ['white', 'white', 'yellow'],
+    'variant2': ['yellow', 'yellow', 'red'],
+    # 2: ['white', 'white', 'yellow'],
+    # 3: ['white', 'white', 'yellow'],
 }
 
-class Strip:
-    def __init__(self, contour=None, rect=None):
-        self.contour = contour
-        self.rect = rect
+for y in range(0, height - window_height + 1, step_size):
+    window = img[y:y + window_height, center_x - window_width // 2:center_x + window_width // 2]
+    window, rects = detect(window)
+    for variant, color_order in classes.items():
+        if all([color in rects for color in color_order]):
+            if np.mean(rects[color_order[0]]) <= np.mean(rects[color_order[1]]) <= np.mean(rects[color_order[2]]):
+                print(f'{variant} detected')
+            elif np.mean(rects[color_order[2]]) <= np.mean(rects[color_order[1]]) <= np.mean(rects[color_order[0]]):
+                print(f'{variant} detected')
     
-    def center(self):
-        M = cv2.moments(self.contour)
-        cY = int(M["m01"] / M["m00"])
-        cX = int(M["m10"] / M["m00"])
-        return (cX, cY)
+    edges = cv2.Canny(window, 100, 200)
+    cv2.imshow('Detected Colors', window)
+    cv2.waitKey(0)
 
-def find_contours(gray):
-    _, thresh = cv2.threshold(gray, BINARY_THRESHOLD, 255, cv2.THRESH_BINARY)
-    gray = cv2.GaussianBlur(thresh, (5, 5), 0)
-    contours, _ = cv2.findContours(gray, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    if len(contours) == 0:
-        raise Exception("Error: No contours found")
-    return contours
-
-def filter_contours(contours):
-    strips = []
-    for cnt in contours:
-        x, y, w, h = cv2.boundingRect(cnt)
-        aspect_ratio = float(w)/h
-        extent = cv2.contourArea(cnt)/(w*h)
-        if aspect_ratio > CONTOUR_ASPECT_RATIO and extent > CONTOUR_EXTENT:
-            strip = Strip(contour=cnt, rect=(x, y, x+w, y+h))
-            strips.append(strip)
-    if len(strips) == 0:
-        raise Exception("Error: No strips found")
-    return strips
-
-def filter_pixels(pixelpoints, gray):
-    return np.array([point for point in pixelpoints if gray[point[0][1], point[0][0]] > BINARY_THRESHOLD])
-
-def find_pixelpoints(contour, gray):
-    mask = np.zeros(gray.shape, np.uint8)
-    cv2.drawContours(mask, [contour], 0, 255, -1)
-    pixelpoints = cv2.findNonZero(mask)
-    pixelpoints = filter_pixels(pixelpoints, gray)
-    return pixelpoints
-
-def select_strips(strips):
-    if len(strips) < STRIP_COUNT:
-        raise Exception(f"Error: Found only {len(strips)} strips")
-    for strip in strips:
-        center = strip.center()
-        selected_strips = []
-        for strip2 in strips:
-            x1, y1, x2, y2 = strip2.rect
-            if x1 <= center[0] <= x2:
-                selected_strips.append(strip2)
-            if len(selected_strips) == STRIP_COUNT:
-                break
-        if len(selected_strips) == STRIP_COUNT:
-            break
-    if len(selected_strips) != STRIP_COUNT:
-        raise Exception(f"Error: Found only {len(strips)} strips")
-    return sorted(selected_strips, key=lambda strip: strip.center()[1])
-
-def k_means(data, k=3, max_iterations=100):
-    centroids = data[np.random.choice(len(data), k, replace=False)]
-    for _ in range(max_iterations):
-        labels = np.array([np.argmin(np.linalg.norm(point - centroids, axis=1)) for point in data])
-        new_centroids = []
-        for i in range(k):
-            cluster_points = data[labels == i]
-            if len(cluster_points) > 0:
-                new_centroids.append(np.mean(cluster_points, axis=0))
-            else:
-                new_centroids.append(centroids[i])
-        new_centroids = np.array(new_centroids)
-        if np.allclose(new_centroids, centroids, atol=1e-2):
-            break
-        centroids = new_centroids
-    return centroids, labels
-
-def extract_color(strip, gray, img, k=1, max_iterations=10):
-    pixelpoints = find_pixelpoints(strip.contour, gray)
-    masked_pixels = []
-    for point in pixelpoints:
-        x, y = point[0]
-        pixel = img[y, x]
-        masked_pixels.append(pixel)
-    masked_pixels = np.array(masked_pixels).reshape(-1, 3)
-    if k == 1:
-        mean_col = np.mean(masked_pixels, axis=0)
-        return tuple(int(pixel) for pixel in mean_col)
-    centroids, labels = k_means(masked_pixels, k, max_iterations)
-    largest_cluster_idx = np.argmax([np.sum(labels == i) for i in range(k)])
-    return tuple(int(pixel) for pixel in centroids[largest_cluster_idx])
-
-def find_variant(detected_pattern):
-    distances = []
-    for pattern in TYRE_VARIANTS.values():
-        distance = np.linalg.norm(np.array(pattern) - np.array(detected_pattern))
-        distances.append(distance)
-    closest_idx = np.argmin(distances)
-    if distances[closest_idx] < COLOR_DISTANCE_TOLERANCE:
-        return list(TYRE_VARIANTS.keys())[closest_idx]
-    raise Exception("Error: No variant found")
-
-def main():
-    cam = cv2.VideoCapture(0)
-    while True:
-        _, img = cam.read()
-        try:
-            if CROP_IMAGE:
-                img = img[CROP_WINDOW_Y:CROP_WINDOW_Y+CROP_WINDOW_HEIGHT, CROP_WINDOW_X:CROP_WINDOW_X+CROP_WINDOW_WIDTH]
-            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            contours = find_contours(gray)
-            strips = filter_contours(contours)
-            selected_strips = select_strips(strips)
-            pattern = []
-            for strip in selected_strips:
-                color = extract_color(strip, gray, img, k=1)
-                pattern.append(color)
-            variant = find_variant(pattern)
-            print(variant)
-        except Exception as e:
-            print(e)
-        cv2.imshow("Camera", img)
-        if cv2.waitKey(1) == ord('q'):
-            break
-    cam.release()
-    cv2.destroyAllWindows()
-
-if __name__ == "__main__":
-    main()
-
+cv2.destroyAllWindows()

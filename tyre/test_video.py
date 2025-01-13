@@ -4,12 +4,12 @@ import numpy as np
 BINARY_THRESHOLD = 127
 CONTOUR_ASPECT_RATIO = 3
 CONTOUR_EXTENT = 0.1
-STRIP_COUNT = 3
+STRIP_COUNT = 2
 CROP_IMAGE = False
 CROP_WINDOW_X = 100
 CROP_WINDOW_Y = 100
-CROP_WINDOW_HEIGHT = 500
-CROP_WINDOW_WIDTH = 1500
+CROP_WINDOW_HEIGHT = 200
+CROP_WINDOW_WIDTH = 600
 COLOR_DISTANCE_TOLERANCE = 50000
 TYRE_VARIANTS = {
     'variant1': [(255, 255, 255), (255, 255, 255), (0, 255, 255)],
@@ -109,17 +109,21 @@ def extract_color(strip, gray, img, k=1, max_iterations=10):
     return tuple(int(pixel) for pixel in centroids[largest_cluster_idx])
 
 def find_variant(detected_pattern):
-    distances = []
-    for pattern in TYRE_VARIANTS.values():
-        distance = np.linalg.norm(np.array(pattern) - np.array(detected_pattern))
-        distances.append(distance)
-    closest_idx = np.argmin(distances)
-    if distances[closest_idx] < COLOR_DISTANCE_TOLERANCE:
-        return list(TYRE_VARIANTS.keys())[closest_idx]
+    metrics = {}
+    for variant, pattern in TYRE_VARIANTS.items():
+        if len(pattern) == STRIP_COUNT:
+            distance = np.linalg.norm(np.array(pattern) - np.array(detected_pattern))
+            metrics[variant] = distance
+    if len(metrics) == 0:
+        raise Exception("Error: No variant found")
+    closest_idx = np.argmin(metrics.values())
+    if min(metrics.values()) < COLOR_DISTANCE_TOLERANCE:
+        return list(metrics.keys())[closest_idx]
     raise Exception("Error: No variant found")
 
 def main():
-    cam = cv2.VideoCapture(0)
+    # cam = cv2.VideoCapture(0)
+    cam = cv2.VideoCapture(r'C:\Users\aditya.raj\Downloads\vid1.mp4')
     while True:
         _, img = cam.read()
         try:
@@ -128,6 +132,7 @@ def main():
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
             img_copy = img.copy() ###### REMOVE
             contours = find_contours(gray)
+            cv2.drawContours(img_copy, contours, 0, (0, 0, 255), 10)
             strips = filter_contours(contours)
             cv2.drawContours(img_copy, [strip.contour for strip in strips], -1, (255, 0, 0), 2) #### REMOVE
             selected_strips = select_strips(strips)
@@ -140,18 +145,17 @@ def main():
             variant = find_variant(pattern)
             print(variant)
             cv2.imshow('img', cv2.resize(img_copy, (700, 700))) ### REMOVE
-            height, width = (300, 150) #### REMOVE
-            section_width = width // 3 #### REMOVE
+            height, width = (300, STRIP_COUNT*50) #### REMOVE
+            section_width = width // STRIP_COUNT #### REMOVE
             pattern_img = np.zeros((height, width, 3), dtype=np.uint8) #### REMOVE
-            pattern_img[:, :section_width] = extract_color(selected_strips[0], gray, img) #### REMOVE
-            pattern_img[:, section_width:2*section_width] = extract_color(selected_strips[1], gray, img) #### REMOVE
-            pattern_img[:, 2*section_width:] = extract_color(selected_strips[2], gray, img) #### REMOVE
+            for i in range(STRIP_COUNT):
+                pattern_img[i*section_width:(i+1)*section_width] = extract_color(selected_strips[i], gray, img) #### REMOVE
             cv2.imshow('Pattern', pattern_img) #### REMOVE
             cv2.imwrite('pattern.jpg', pattern_img) #### REMOVE
         except Exception as e:
-            # print(e)
+            print(e)
             pass
-        cv2.imshow("Camera", img)
+        cv2.imshow("Camera", img_copy)
         if cv2.waitKey(1) == ord('q'):
             break
     cam.release()

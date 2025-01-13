@@ -3,8 +3,8 @@ import numpy as np
 
 BINARY_THRESHOLD = 127
 CONTOUR_ASPECT_RATIO = 3
-CONTOUR_EXTENT = 0.5
-STRIP_COUNT = 3
+CONTOUR_EXTENT = 0.1
+STRIP_COUNT = 2
 CROP_IMAGE = False
 CROP_WINDOW_X = 100
 CROP_WINDOW_Y = 100
@@ -104,54 +104,59 @@ def extract_color(strip, gray, img, k=1, max_iterations=10):
     return tuple(int(pixel) for pixel in centroids[largest_cluster_idx])
 
 def find_variant(detected_pattern):
-    distances = []
-    for pattern in TYRE_VARIANTS.values():
-        distance = np.linalg.norm(np.array(pattern) - np.array(detected_pattern))
-        distances.append(distance)
-    closest_idx = np.argmin(distances)
-    if distances[closest_idx] < COLOR_DISTANCE_TOLERANCE:
-        return list(TYRE_VARIANTS.keys())[closest_idx]
+    metrics = {}
+    for variant, pattern in TYRE_VARIANTS.items():
+        if len(pattern) == STRIP_COUNT:
+            distance = np.linalg.norm(np.array(pattern) - np.array(detected_pattern))
+            metrics[variant] = distance
+    if len(metrics) == 0:
+        raise Exception("Error: No variant found")
+    closest_idx = np.argmin(metrics.values())
+    if min(metrics.values()) < COLOR_DISTANCE_TOLERANCE:
+        return list(metrics.keys())[closest_idx]
     raise Exception("Error: No variant found")
 
 if __name__ == "__main__":
-    file = r"tyre\tyre images\red_tyre.jpg"
+    file = r"C:\Users\aditya.raj\Downloads\frame0.jpg"
     img = cv2.imread(file)
-    if CROP_IMAGE:
-        img = img[CROP_WINDOW_Y:CROP_WINDOW_Y+CROP_WINDOW_HEIGHT, CROP_WINDOW_X:CROP_WINDOW_X+CROP_WINDOW_WIDTH]
-    img_copy = img.copy() ###### REMOVE
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    contours = find_contours(gray)
-    strips = filter_contours(contours)
-    cv2.drawContours(img_copy, [strip.contour for strip in strips], -1, (255, 0, 0), 2) #### REMOVE
-    if len(strips) < STRIP_COUNT:
-        print(f"Error: Could not find {STRIP_COUNT} strips")
+    try:
+        if CROP_IMAGE:
+            img = img[CROP_WINDOW_Y:CROP_WINDOW_Y+CROP_WINDOW_HEIGHT, CROP_WINDOW_X:CROP_WINDOW_X+CROP_WINDOW_WIDTH]
+        img_copy = img.copy() ###### REMOVE
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        contours = find_contours(gray)
+        strips = filter_contours(contours)
+        cv2.drawContours(img_copy, [strip.contour for strip in strips], -1, (255, 0, 0), 2) #### REMOVE
+        if len(strips) < STRIP_COUNT:
+            print(f"Error: Could not find {STRIP_COUNT} strips")
+            cv2.imshow('img', cv2.resize(img_copy, (CROP_WINDOW_WIDTH, CROP_WINDOW_HEIGHT))) ### REMOVE
+            cv2.waitKey(0) ### REMOVE
+            cv2.destroyAllWindows() ### REMOVE
+            exit()
+        selected_strips = select_strips(strips)
+        for strip in selected_strips: #### REMOVE
+            x1, y1, x2, y2 = strip.rect #### REMOVE
+            cv2.rectangle(img_copy, (x1, y1), (x2, y2), (0, 255, 0), 3) #### REMOVE
+        pattern = []
+        for strip in selected_strips:
+            color = extract_color(strip, gray, img, k=1)
+            pattern.append(color)
+            cv2.rectangle(img_copy, (strip.rect[0], strip.rect[1]), (strip.rect[2], strip.rect[3]), color, -1) #### REMOVE
+        print(pattern)
+        # variant = find_variant(pattern)
+        # print(variant)
         cv2.imshow('img', cv2.resize(img_copy, (CROP_WINDOW_WIDTH, CROP_WINDOW_HEIGHT))) ### REMOVE
-        cv2.waitKey(0) ### REMOVE
-        cv2.destroyAllWindows() ### REMOVE
-        exit()
-    selected_strips = select_strips(strips)
-    for strip in selected_strips: #### REMOVE
-        x1, y1, x2, y2 = strip.rect #### REMOVE
-        cv2.rectangle(img_copy, (x1, y1), (x2, y2), (0, 255, 0), 3) #### REMOVE
-    pattern = []
-    for strip in selected_strips:
-        color = extract_color(strip, gray, img, k=1)
-        pattern.append(color)
-        cv2.rectangle(img_copy, (strip.rect[0], strip.rect[1]), (strip.rect[2], strip.rect[3]), color, -1) #### REMOVE
-    print(pattern)
-    variant = find_variant(pattern)
-    print(variant)
-    cv2.imshow('img', cv2.resize(img_copy, (CROP_WINDOW_WIDTH, CROP_WINDOW_HEIGHT))) ### REMOVE
 
-    height, width = (300, 150) #### REMOVE
-    section_width = width // 3 #### REMOVE
-    pattern_img = np.zeros((height, width, 3), dtype=np.uint8) #### REMOVE
-    pattern_img[:, :section_width] = extract_color(selected_strips[0], gray, img) #### REMOVE
-    pattern_img[:, section_width:2*section_width] = extract_color(selected_strips[1], gray, img) #### REMOVE
-    pattern_img[:, 2*section_width:] = extract_color(selected_strips[2], gray, img) #### REMOVE
-    cv2.imshow('Pattern', pattern_img) #### REMOVE
-    cv2.imwrite('pattern_yellow.jpg', pattern_img) #### REMOVE
-    cv2.imwrite('tyre_segment.jpg', img_copy) ### REMOVE
+        height, width = (300, STRIP_COUNT*50) #### REMOVE
+        section_width = width // STRIP_COUNT #### REMOVE
+        pattern_img = np.zeros((height, width, 3), dtype=np.uint8) #### REMOVE
+        for i in range(STRIP_COUNT):
+            pattern_img[:, i*section_width:(i+1)*section_width] = extract_color(selected_strips[i], gray, img) #### REMOVE
+        cv2.imshow('Pattern', pattern_img) #### REMOVE
+        cv2.imwrite('pattern_yellow.jpg', pattern_img) #### REMOVE
+        cv2.imwrite('tyre_segment.jpg', img_copy) ### REMOVE
+    except:
+        pass
     cv2.waitKey(0) ### REMOVE
     cv2.destroyAllWindows() ### REMOVE
 
