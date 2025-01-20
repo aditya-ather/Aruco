@@ -7,9 +7,10 @@ def subpixel(image, corners):
 
 aruco_dict = cv2.aruco.getPredefinedDictionary(getattr(cv2.aruco, 'DICT_4X4_50'))
 aruco_params = cv2.aruco.DetectorParameters()
-# aruco_params.cornerRefinementMethod = cv2.aruco.CORNER_REFINE_SUBPIX
+aruco_params.cornerRefinementMethod = cv2.aruco.CORNER_REFINE_SUBPIX
+aruco_params.cornerRefinementMinAccuracy = 1e-10
 # image = cv2.imread(r"C:\Users\aditya.raj\Downloads\m1.jpg")
-image = cv2.imread(r"C:\Users\aditya.raj\Downloads\output.png")
+image = cv2.imread(r"C:\Users\aditya.raj\Downloads\m2.jpg")
 # image = cv2.resize(image, (1200, 600))
 detector = cv2.aruco.ArucoDetector(aruco_dict, aruco_params)
 (corners1, ids, rejected) = detector.detectMarkers(image)
@@ -26,6 +27,8 @@ if len(corners1) > 0:
 		bottomRight = (int(bottomRight[0]), int(bottomRight[1]))
 		bottomLeft = (int(bottomLeft[0]), int(bottomLeft[1]))
 		topLeft = (int(topLeft[0]), int(topLeft[1]))
+		for c in corners:
+			cv2.circle(image, (int(c[0]), int(c[1])), 1, (0, 0, 255))
 		cv2.line(image, topLeft, topRight, (0, 255, 0), 1)
 		cv2.line(image, topRight, bottomRight, (0, 255, 0), 1)
 		cv2.line(image, bottomRight, bottomLeft, (0, 255, 0), 1)
@@ -41,7 +44,7 @@ if len(corners1) > 0:
 # 	return
 # cv2.namedWindow('hello')
 # cv2.createTrackbar('Threshold: ', 'hello', 10, 25, void)
-# cv2.imshow("Image", image)
+# cv2.imshow("Image", cv2.resize(image, (1200, 900)))
 # cv2.waitKey(0)
 
 def slope(p1, p2):
@@ -101,6 +104,7 @@ else:
 	cy3 = (p31[1] + p32[1]) / 2
 	m1 = (cy3 - cy1) / (cx3 -cx1)
 	m2 = (cy2 - cy1) / (cx2 -cx1)
+	print(m1,)
 
 angle = abs((m2 - m1) / (1 + m1 * m2))
 import math

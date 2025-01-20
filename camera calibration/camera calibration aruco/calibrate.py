@@ -14,20 +14,20 @@ from tqdm import tqdm
 root = Path(__file__).parent.absolute()
 
 # Set this flsg True for calibrating camera and False for validating results real time
-# calibrate_camera = True
 calibrate_camera = True
+# calibrate_camera = False
 
 # Set path to the images
-calib_imgs_path = root.joinpath("images webcam")
+calib_imgs_path = root.joinpath("images")
 
 # For validating results, show aruco board to camera.
 aruco_dict = aruco.getPredefinedDictionary( aruco.DICT_6X6_1000 )
 
 #Provide length of the marker's side
-markerLength = 3.8  # Here, measurement unit is centimetre.
+markerLength = 38  # Here, measurement unit is milimetre.
 
 # Provide separation between markers
-markerSeparation = 0.5   # Here, measurement unit is centimetre.
+markerSeparation = 5   # Here, measurement unit is milimetre.
 
 # create arUco board
 board = aruco.GridBoard((4, 5), markerLength, markerSeparation, aruco_dict)
@@ -36,6 +36,8 @@ board = aruco.GridBoard((4, 5), markerLength, markerSeparation, aruco_dict)
 # cv2.waitKey(0)
 
 arucoParams = aruco.DetectorParameters()
+arucoParams.cornerRefinementMethod = cv2.aruco.CORNER_REFINE_SUBPIX
+arucoParams.cornerRefinementMinAccuracy = 1e-10
 detector = cv2.aruco.ArucoDetector(aruco_dict, arucoParams)
 
 if calibrate_camera == True:
@@ -51,6 +53,8 @@ if calibrate_camera == True:
     for im in tqdm(img_list):
         img_gray = cv2.cvtColor(im,cv2.COLOR_RGB2GRAY)
         corners, ids, rejectedImgPoints = detector.detectMarkers(img_gray)
+        # cv2.imshow('img', cv2.aruco.drawDetectedMarkers(img_gray, corners))
+        # cv2.waitKey(0)
         if first == True:
             corners_list = corners
             id_list = ids
@@ -68,7 +72,7 @@ if calibrate_camera == True:
     counter = np.array(counter)
     print ("Calibrating camera ...")
     #mat = np.zeros((3,3), float)
-    ret, mtx, dist, rvecs, tvecs = aruco.calibrateCameraAruco(corners_list, id_list, counter, board, img_gray.shape, None, None )
+    ret, mtx, dist, rvecs, tvecs = aruco.calibrateCameraAruco(corners_list, id_list, counter, board, img_gray.shape, None, None)
 
     # print("Camera matrix is \n", mtx, "\n And is stored in calibration.pkl file along with distortion coefficients : \n", dist)
     data = {'camera_matrix': np.asarray(mtx).tolist(), 'dist_coeff': np.asarray(dist).tolist()}
@@ -76,7 +80,6 @@ if calibrate_camera == True:
         pickle.dump(data, f)
     print('Calibration done.')
     print("Total reprojection error: ", ret)
-    print(data)
 
 else:
     camera = cv2.VideoCapture(1)
@@ -106,7 +109,7 @@ else:
         [markerLength, 0, -markerLength],
         [markerLength, markerLength, -markerLength],
         [0, markerLength, -markerLength]
-    ], dtype=np.float32) * 2
+    ], dtype=np.float32) * 1
 
     offset = np.zeros((8,3))
     offset[:, 2] = -20
@@ -118,8 +121,8 @@ else:
         img_aruco = img
         im_gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
         h,  w = im_gray.shape[:2]
-        dst = cv2.undistort(img, mtx, dist, None, newcameramtx)
-        corners, ids, rejectedImgPoints = detector.detectMarkers(dst)
+        # dst = cv2.undistort(img, mtx, dist, None, newcameramtx)
+        corners, ids, rejectedImgPoints = detector.detectMarkers(img)
 
         if corners:
             ret, rvec, tvec = aruco.estimatePoseBoard(corners, ids, board, newcameramtx, dist, None, None) # For a board

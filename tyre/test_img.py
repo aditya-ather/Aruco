@@ -29,6 +29,8 @@ class Strip:
 
 def find_contours(gray):
     _, thresh = cv2.threshold(gray, BINARY_THRESHOLD, 255, cv2.THRESH_BINARY)
+    thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 101,4)
+    cv2.imshow('th', cv2.resize(thresh, (1200, 700)))
     gray = cv2.GaussianBlur(thresh, (5, 5), 0)
     contours, _ = cv2.findContours(gray, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE) # RETRIEVE ONLY PARENT
     return contours
@@ -117,7 +119,7 @@ def find_variant(detected_pattern):
     raise Exception("Error: No variant found")
 
 if __name__ == "__main__":
-    file = r"C:\Users\aditya.raj\Downloads\frame0.jpg"
+    file = r"C:\Users\aditya.raj\Desktop\project_aruco\tyre\tyre images\red_tyre.jpg"
     img = cv2.imread(file)
     try:
         if CROP_IMAGE:
