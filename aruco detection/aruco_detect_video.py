@@ -39,7 +39,7 @@ dist = loadeddict.get('dist_coeff')
 mtx = np.array(mtx)
 dist = np.array(dist)
 
-markerLength = 48 #mm
+markerLength = 36 #mm
 cube = np.array([
         [0, 0, 0],
         [markerLength, 0, 0],
