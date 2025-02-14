@@ -45,5 +45,6 @@ def calibrate(x, corners_list, id_list, counter, img_gray):
     return ret
 
 x0=[22.7289, 19.00] # initial values daal idhar markerlength aur separation ka
-res=scipy.optimize.minimize(calibrate, x0, args=(corners_list, id_list, counter, img_gray), method='L-BFGS-B', options={'disp':True, 'eps':1e-3}, bounds=[(22.5,22.9), (18.9, 19.1), (3.7, 4)], tol=1e-5)
+range_of_values = [(22.5,22.9), (18.9, 19.1)]  # idhar (min,max) value daal dono parameter ka
+res=scipy.optimize.minimize(calibrate, x0, args=(corners_list, id_list, counter, img_gray), method='L-BFGS-B', options={'disp':True, 'eps':1e-3}, bounds=range_of_values, tol=1e-5)
 print(res)
