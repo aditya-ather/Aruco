@@ -4,15 +4,16 @@ import os
 
 # Constants
 A4_WIDTH_MM = 210  # A4 paper width in mm
-A4_WIDTH_PX = 2480  # A4 paper width in pixels at 300 DPI
-MARKER_FOLDER = 'aruco_markers'
+A4_WIDTH_PX = 2480*3 # A4 paper width in pixels at 300 DPI
+MARKER_FOLDER = 'aruco detection/aruco_markers'
 # MARKER_SIZE_MM = 50  # Marker size in mm
-for MARKER_SIZE_MM in [10, 15, 20, 25, 30, 35, 40, 45, 50]:
+for MARKER_SIZE_MM in [30]:
     MARKER_SIZE_PX = int((MARKER_SIZE_MM / A4_WIDTH_MM) * A4_WIDTH_PX)
+    print(MARKER_SIZE_PX)
     # Load marker images
     marker_images = []
     files = os.listdir(MARKER_FOLDER)
-    for i in range(len(files)):
+    for i in range(len(files)-7):
         marker_path = os.path.join(MARKER_FOLDER, files[i])
         marker_image = cv2.imread(marker_path, cv2.IMREAD_GRAYSCALE)
         if marker_image is not None:
@@ -39,6 +40,7 @@ for MARKER_SIZE_MM in [10, 15, 20, 25, 30, 35, 40, 45, 50]:
         col = idx % (A4_WIDTH_PX // (MARKER_SIZE_PX + GAP_SIZE_PX))
         x_offset = col * (MARKER_SIZE_PX + GAP_SIZE_PX) + GAP_SIZE_PX
         y_offset = row * (MARKER_SIZE_PX + GAP_SIZE_PX + 2 * FONT_SCALE * 30) + GAP_SIZE_PX + FONT_SCALE * 30
+        print(collage.shape, x_offset, y_offset, files[idx])
         collage[y_offset:y_offset + MARKER_SIZE_PX, x_offset:x_offset + MARKER_SIZE_PX] = marker
         
         # Add subtitle (ID) below the marker

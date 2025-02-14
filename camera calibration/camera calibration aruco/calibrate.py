@@ -3,94 +3,106 @@ This code assumes that images used for calibration are of the same arUco marker 
 
 """
 
+import os
 import pickle
 import cv2
 from cv2 import aruco
 import numpy as np
 from pathlib import Path
 from tqdm import tqdm
+import scipy
 
-# root directory of repo for relative path specification.
 root = Path(__file__).parent.absolute()
-
-# Set this flsg True for calibrating camera and False for validating results real time
 calibrate_camera = True
-# calibrate_camera = False
-
-# Set path to the images
-calib_imgs_path = root.joinpath("images")
-
-# For validating results, show aruco board to camera.
+calib_imgs_path = "C:/Users/aditya.raj/Desktop/ergometrics\data/calibration_images/54mp/focus5_8/"
 aruco_dict = aruco.getPredefinedDictionary( aruco.DICT_6X6_1000 )
-
-#Provide length of the marker's side
-markerLength = 32  # Here, measurement unit is milimetre.
-
-# Provide separation between markers
-markerSeparation = 4   # Here, measurement unit is milimetre.
-
-# create arUco board
-board = aruco.GridBoard((5, 5), markerLength, markerSeparation, aruco_dict)
-img = board.generateImage((10000, 10000), marginSize=200)
-cv2.imwrite("board.png", img)
+markerLength = 30  # Here, measurement unit is milimetre.
+markerSeparation = 5   # Here, measurement unit is milimetre.
+# board = aruco.GridBoard((7, 14), markerLength, markerSeparation, aruco_dict)
+# img = board.generateImage((14000, 14000), marginSize=0)
+# cv2.imwrite("board.png", img)
 # cv2.waitKey(0)
-exit()
+# exit()
 arucoParams = aruco.DetectorParameters()
 arucoParams.cornerRefinementMethod = cv2.aruco.CORNER_REFINE_SUBPIX
 arucoParams.cornerRefinementMinAccuracy = 1e-10
 detector = cv2.aruco.ArucoDetector(aruco_dict, arucoParams)
+# global ids
+ids2=[]
+for i in range(14):
+    ids2.extend(list(range(9*i,9*i+7)))
+ids2=np.array(ids2)
+img_list = []
+calib_fnms = os.listdir(calib_imgs_path)
+for idx, fn in enumerate(calib_fnms):
+    img = cv2.imread(calib_imgs_path+fn)
+    img_list.append( img )
+    h, w, c = img.shape
 
-if calibrate_camera == True:
-    img_list = []
-    calib_fnms = calib_imgs_path.glob('*.jpg')
-    for idx, fn in enumerate(calib_fnms):
-        img = cv2.imread( str(root.joinpath(fn) ))
-        img_list.append( img )
-        h, w, c = img.shape
+counter, corners_list, id_list = [], [], []
+first = True
+for im in (img_list):
+    img_gray = cv2.cvtColor(im,cv2.COLOR_RGB2GRAY)
+    corners, ids, rejectedImgPoints = detector.detectMarkers(img_gray)
+    if first == True:
+        corners_list = corners
+        id_list = ids
+        first = False
+    else:
+        try:
+            corners_list = np.vstack((corners_list, corners))
+            id_list = np.vstack((id_list,ids))
+        except:
+            print('fail')
+            continue
+    counter.append(len(ids))
+counter = np.array(counter)
 
-    counter, corners_list, id_list = [], [], []
-    first = True
-    for im in (img_list):
-        img_gray = cv2.cvtColor(im,cv2.COLOR_RGB2GRAY)
-        corners, ids, rejectedImgPoints = detector.detectMarkers(img_gray)
-        # print(len(corners), '##')
-        # cv2.imwrite(f'cal.jpg', cv2.aruco.drawDetectedMarkers(img_gray, corners))
-        # cv2.waitKey(0)
-        if first == True:
-            corners_list = corners
-            id_list = ids
-            first = False
-        else:
-            try:
-                corners_list = np.vstack((corners_list, corners))
-                id_list = np.vstack((id_list,ids))
-            except:
-                print('fail')
-                continue
-        counter.append(len(ids))
-    counter = np.array(counter)
-    print('Found {} unique markers'.format(len(np.unique(ids))))
-    print(id_list.shape, counter)
-    print ("Calibrating camera ...")
+def calibrate(x, ids2, corners_list, id_list, counter, img_gray):
+    l=x[0]
+    sx=x[1]
+    sy=x[2]
+    pts=[]
+    pt=np.array([[ 0.,  0.,  0.],
+        [l,  0.,  0.],
+        [l, l,  0.],
+        [ 0., l,  0.]], dtype=np.float32)
+
+    for i in range(14):
+        for j in range(7):
+            p=pt.copy()
+            p[:,0]+=sx*j + l*j
+            pts.append(p)
+        pt[:,1]+=l+sy
+    pts=np.array(pts)
+    board=cv2.aruco.Board(pts, aruco_dict, ids2)
+
+    # print('Found {} unique markers'.format(len(np.unique(ids))))
+    # print(id_list.shape, counter)
+    # print ("Calibrating camera ...")
     # mat = np.zeros((3,3), float)
-    perview=np.zeros(len(counter))
+    # perview=np.zeros(len(counter))
     ret, mtx, dist, rvecs, tvecs, _, _, perview = aruco.calibrateCameraArucoExtended(corners_list, id_list, counter, board, img_gray.shape, None, None)#, perViewErrors=perview)
-
+    return ret
     # print("Camera matrix is \n", mtx, "\n And is stored in calibration.pkl file along with distortion coefficients : \n", dist)
-    data = {'camera_matrix': np.asarray(mtx).tolist(), 'dist_coeff': np.asarray(dist).tolist()}
-    with open(root.joinpath("calibration.pkl"), "wb") as f:
-        pickle.dump(data, f)
-    print('Calibration done.')
-    print("Total reprojection error: ", ret)
-    print(len(counter), len(perview))
-    print(perview)
+    # data = {'camera_matrix': np.asarray(mtx).tolist(), 'dist_coeff': np.asarray(dist).tolist()}
+    # with open(root.joinpath("calibration.pkl"), "wb") as f:
+    #     pickle.dump(data, f)
+    # print('Calibration done.')
+    # print("Total reprojection error: ", ret)
+    # print(len(counter), len(perview))
+    # print(perview)
 
-else:
+x0=[22.7289, 19.00, 3.78]
+res=scipy.optimize.minimize(calibrate, x0, args=(ids2, corners_list, id_list, counter, img_gray), method='L-BFGS-B', options={'disp':True, 'eps':1e-3}, bounds=[(22.5,22.9), (18.9, 19.1), (3.7, 4)], tol=1e-5)
+print(res)
+'''
+else:`
     camera = cv2.VideoCapture(1)
     # camera = cv2.VideoCapture('https://172.19.66.48:8080/video')
     ret, img = camera.read()
 
-    with open(root.joinpath('calibration.pkl'), 'rb') as f:
+    with open(root.joinpath('calibration_mf.pkl'), 'rb') as f:
         loadeddict = pickle.load(f)
     mtx = loadeddict.get('camera_matrix')
     dist = loadeddict.get('dist_coeff')
@@ -193,3 +205,4 @@ else:
             break
 
 cv2.destroyAllWindows()
+'''
